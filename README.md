@@ -1,4 +1,4 @@
-vi # dycomed
+# dycomed
 
 Python scripts to perform eddy detections, tracking and collocation with remote-sensing and in situ data, in delayed time or near-real-time mode
 
