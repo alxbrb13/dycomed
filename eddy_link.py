@@ -37,8 +37,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import sys
 sys.path.append('/home6/datahome/abarboni/DYNED-NRT/')
-from tools_dycomed import MLD_threshold, newlink, str2juld, juld2str, distance
-from tools_dyned_these import load_bathy, plot_bathy
+from tools_dyco import MLD_threshold, newlink, str2juld, juld2str, distance
 # from tools_dyned_these import distance, MLD_threshold #, unique_prof, link_eddies_end, 
 # import gsw
 from matplotlib import rcParams
@@ -63,23 +62,12 @@ if region =='MED':
     path_prof='/home6/datawork/abarboni/DYCOMED/PROF/'
     file_prof='CORA_NRT_MED_merged_'
 
-# %%
-path_topo='/home6/datawork/abarboni/OceanData/'
-lon_t,lat_t,z_t=load_bathy(path_topo+'ETOPO2v2c_f4.nc', CoorLon, CoorLat)
 
-# %%
-#### finding last merged obs dataset
-ListDir=os.listdir(path_obs) ; Atlas=[]
-for name in ListDir:
-    if name[:len(file_obs)]==file_obs:
-        Atlas+=[name]
-Atlas=np.sort(Atlas) ;
-name_atlas=Atlas[0]
 
 # %%
 ### Loading eddy obs
 f=nc4.Dataset(path_obs+name_atlas,'r')
-Pol=f['polarity'][:]
+Pol=f['polarity'][:]   ### +1 if obs is cyclone  ; -1 if anticyclone
 x_cen=f['x_cen'][:]
 y_cen=f['y_cen'][:]
 x_max=f['x_max'][:]
@@ -91,39 +79,19 @@ f.close()
 
 # %%
 ### finding last merged profile dataset
-ListDir=os.listdir(path_prof) ; Merged=[]
-for name in ListDir:
-    if name[:len(file_prof)]==file_prof:
-        Merged+=[name]
-Merged=np.sort(Merged) ;
-
-name_merged=Merged[0] ; date_m=name_merged[-11:-3]
-print('Date of previously merged profiles dataset :'+date_m)
 
 # %% Loading NetCDF data
 ### Loading profiles
 f_merge = nc4.Dataset(path_prof+name_merged,'r', format='NETCDF4')
 time_common=f_merge['Days'][:]
-juldnew=str2juld(date_m)-delay-refresh
-
-print('\n Updating profiles colocalization from '+juld2str(juldnew))
-
-select=(time_common>=juldnew)  ### selecting only new profiles
-#yearprof=2000+(time_common/365.25)
-#select=(yearprof>=2022)  ### selecting only new profiles
-
-print('\n Colocalization computed for '+str(len(np.where(select)[0]))+' profiles')
-
-### Quick fix
-time_common=f_merge['Days'][select]
-x_common=f_merge['Longitude'][select]
-y_common=f_merge['Latitude'][select]
-
-file_name=f_merge['file_name'][select]
-Tprof=f_merge['gridded_temp'][select]
+time_common=f_merge['Days'][:]
+x_common=f_merge['Longitude'][:]
+y_common=f_merge['Latitude'][:]
+file_name=f_merge['file_name'][:]
+Tprof=f_merge['gridded_temp'][:]
 # PTprof=f_merge['gridded_ptemp'][:]
-Sprof=f_merge['gridded_sal'][select]
-Dprof=f_merge['gridded_sigma_pot'][select]
+Sprof=f_merge['gridded_sal'][:]
+Dprof=f_merge['gridded_sigma_pot'][:]
 depth=f_merge['Depth_ref'][:]
 f_merge.close()
 Nprof=len(x_common)
@@ -204,8 +172,8 @@ plt.title('Number of profiles')
 # %%
 Out=len(np.where((np.abs(eddy_tag)==0))[0])
 Amb=len(np.where((np.abs(eddy_tag)==1) + (np.abs(eddy_tag)==3))[0])
-AE=len(np.where((eddy_tag==2))[0])
-CE=len(np.where((eddy_tag==-2))[0])
+AE=len(np.where((eddy_tag==-2))[0])
+CE=len(np.where((eddy_tag==+2))[0])
 print('\n  Inside Anticyclone : '+str(AE)+' \n Inside Cyclone : '+str(CE)+' \n Ambiguous : '+str(Amb)+' \n Outside : '+str(Out))
 
 # %% Mixed layer depth calculation on temperature and temperature
@@ -216,29 +184,6 @@ for i in tqdm(range(Nprof)):
     mld[i]=MLD_threshold(Dprof[i,1:], depth[1:], delta=0.03, surf_accept=5)
     mldT[i]=MLD_threshold(Tprof[i,1:], depth[1:], delta=0.1, surf_accept=5)
 
-# %% Check plot [markdown]
-# density=True
-# plt.figure(0)
-# for i in range(20):
-#     s=20*i+10000 #20*i+600
-#     if density :
-#         plt.plot(Dprof[s,:], -1*depth, '-')
-#         if ~np.isnan(mld[s]): ### Otherwise black dot appear even if mld is nan
-#             h=np.argmin(np.abs(mld[s]-depth))
-#             plt.plot(Dprof[s,h],-1*depth[h],'ok')
-#         if ~np.isnan(mldT[s]):
-#             h=np.argmin(np.abs(mldT[s]-depth))
-#             plt.plot(Dprof[s,h],-1*depth[h],'or')
-#     else:
-#         plt.plot(Tprof[s,:], -1*depth, '-')
-#         if ~np.isnan(mldT[s]): ### Otherwise black dot appear even if mld is nan
-#             h=np.argmin(np.abs(mldT[s]-depth))
-#             plt.plot(Tprof[s,h],-1*depth[h],'or')
-#         if ~np.isnan(mldT[s]):
-#             h=np.argmin(np.abs(mld[s]-depth))
-#             plt.plot(Tprof[s,h],-1*depth[h],'ok')
-#             
-# plt.ylim([-80,0])
 # %% Salinity ### New November 2021
 Sal_present=(np.sum(~np.isnan(Sprof),axis=1)>1)
 
@@ -281,37 +226,6 @@ f_merge['mld_from_temp'][select]=mldT
 f_merge['Salinity_measured'][select]=Sal_present.astype(int)
 
 f_merge.close()
-
-
-
-# %%
-Datatype=[]
-for file in file_name:
-    Datatype+=[file.split('_')[2]]
-Datatype=np.array(Datatype)
-#Items=np.zeros(len(x_common))
-#Items[Datatype=='PF']='d'
-#Items[Datatype=='']='x'
-
-# %%
-
-Items=['c']*100+['r']*14
-Items=np.array(Items)
-
-# %%
-FigSize=(24,10) ;LS=16
-fig=plt.figure(2, figsize=FigSize) ; plt.grid()
-ax=plt.subplot(111)
-plt.title('New profiles since ', size=20)
-plot_bathy(lon_t,lat_t,z_t)
-
-#plt.plot(x_common[Datatype=='PF'],y_common[Datatype=='PF'],'r',marker='o', linestyle='')
-#plt.plot(x_common[Datatype=='GL'],y_common[Datatype=='GL'],'k',marker='d', linestyle='')
-plt.scatter(x_common,y_common, c=Items)
-plt.tick_params(labelsize=LS)
-#map_chart(ax, CoorLon, CoorLat, 0.2, 0.2, n_x=1, n_y=1, stepy=0)
-plt.xlim(CoorLon) ; plt.ylim(CoorLat) #; plt.legend(loc=3,fontsize=LS)
-plt.xlabel('Longitude [\N{DEGREE SIGN}E]',size=LS) ; plt.ylabel('Longitude [\N{DEGREE SIGN}E]',size=LS) 
 
 
 # %%

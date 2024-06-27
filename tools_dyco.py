@@ -40,8 +40,12 @@ def unique_prof(time, x, y):
     unique_prof
     return an integer as unique identifier of a given profile as function of its 2D position + time
     Intended to count doubles, but not 100% efficient given errors in data
+    
+    INPUT
+    time = in julian days (integer)
+    X    = longitude in degree, can be [-180,180] or [0,360] but shoudl be consistent between both dataset to merge
     """
-    Unic=(time.astype(int)*1e9 + (x*100).astype(int)*100000 + (y*100).astype(int)).astype(int)
+    Unic=((time*100).astype(int)*1e9 + (x*100).astype(int)*100000 + (y*100).astype(int)).astype(int)
     return Unic
 
 def juld2str(juld, format='%Y%m%d'):
@@ -90,58 +94,6 @@ def fill_gap(A):
 
 # %% Defining coloc function
 
-def link_eddies_end(x_cast, y_cast, time_cast, x_cen, y_cen, x_max, y_max, x_end, y_end, time_dyned, search_radius=120):
-    """
-    link_eddies_end  
-    
-    Attributes colocalization between profiles at given position and time, and the DYNED observations.
-    This function looks for potential eddy centers ON THE SAME DAY, in a perimeter closer than search_radius
-    By default search_radius =120 km, but to be adjusted with the ocean region
-    Colocalization are flagged as 1 if profiles is between Rend and Rmax contours, flagged as 2 if indeed inside Ramx contour
-    
-    Change from previous function 'link_eddies' : two levels of eddy tags in 'flageddy', within last closed SSH contour and max speed radius differenciated
-     
-    Warning : - flageddy does not take into account colocalized eddy polarity, then it is different from "eddy tag" in DYCOMED (positive tags => AE / negative => CE)
-              - Latest version of DYCOMED also encompasses detection at +/- several days and takes a 3rd flag "ambiguous"
-    
-    INPUT
-    x/y/time_cast      array size P            2D postion and time of cast profile
-    x/y_cen            array size Nobs         2D position of eddy centers from DYNED
-    time_dyned         array size Nobs         observation time array in DYNED
-    x/y_max            array size (Nobs x 50)  coordinates of Rmax contours observations
-    x/y_end            array size (Nobs x 50)  coordinates of Rend contours observations
-    
-    OPTIONAL
-    search_radius=120   int        maximal distance in km to search for colocalized eddy center
-    
-    OUTPUT
-    ctd2obs     int array size P     index of colocalized observation with profiles, if any. If not colocalized, =-1
-    disteddy    float array size P   distance to colocalized eddy with profiles, if any. If not colocalized, =-1
-    flageddy    int array size P     Type of colocalization. If not colocalized, =0, if between Rmax and Rend =1, if inside Rmax=2
-    """
-
-    day_cast=time_cast - time_cast%1
-    day_cast[(time_cast%1)>0.5]+=1
-    day_cast=day_cast.astype(int)
-    ctd2obs=-1*np.ones(len(day_cast))
-    disteddy=-1*np.ones(len(day_cast))
-    flageddy=np.zeros(len(day_cast))
-    for i in tqdm(range(len(day_cast))):
-        I=np.where(time_dyned==day_cast[i])[0]
-        D=distance(x_cast[i], x_cen[I], y_cast[i], y_cen[I])
-        x_contour=x_max[I][D<search_radius] ; y_contour=y_max[I][D<search_radius]
-        x_cont_end=x_end[I][D<search_radius+30] ; y_cont_end=y_end[I][D<search_radius+30]
-        for j in range(np.shape(x_cont_end)[0]):
-            path_eddy=mpp.Path(np.array([x_cont_end[j],y_cont_end[j]]).T, closed=True)
-            if path_eddy.contains_point([x_cast[i],y_cast[i]]):
-                ctd2obs[i]=I[D<search_radius+30][j]
-                disteddy[i]=D[D<search_radius+30][j]
-                flageddy[i]=1
-        for j in range(np.shape(x_contour)[0]):
-            path_eddy=mpp.Path(np.array([x_contour[j],y_contour[j]]).T, closed=True)
-            if path_eddy.contains_point([x_cast[i],y_cast[i]]):
-                flageddy[i]=2
-    return ctd2obs.astype(int), disteddy, flageddy
 
 def newlink(x_common, y_common, day_common, x_cen, y_cen, x_max, y_max, x_end, y_end, time_dyned, delay=2, search_radius=150):
     """
@@ -329,9 +281,7 @@ interpol_profiles
 Interpolate an array of profiles over a reference depth vector depth_array
 
 New December 2021 : Check that Temp and depth_array vectors have nans at the same levels
-INPUT
 
-OUTPUT
 
 
 """
@@ -397,129 +347,17 @@ def interpol_profiles_column_filter(depth_prim, Temp, depth_ref, kind='linear', 
         Result[:]=np.nan
     return Result
 
+#%%
+def interp_local_z(Pres,Var,z_i,dz):
+    index_z=(z_i>np.nanmin(Pres)) & (z_i<np.nanmax(Pres))
+    local_z=z_i[index_z] #.data
+    Result=np.ones(len(z_i))*-1
 
-# %% [markdown]
-# ### Mapping tools
-
-# %%
-def add_contour(ax, shp_filename, color='k',lw=1):
-    # Read the shapefile using geopandas
-    gdf = gpd.read_file(shp_filename)
-
-    # Create a Cartopy feature from the GeoDataFrame
-    shapely_feature = cf.ShapelyFeature(gdf['geometry'], ccrs.PlateCarree(), facecolor='none', linewidth=lw,edgecolor=color)
-
-    # Add the feature to the plot
-    ax.add_feature(shapely_feature)
-
-    #shapefile_path =
-    
-def plot_coast(ax,color='k',lw=1):
-    add_contour(ax,'/home6/datawork/abarboni/OceanData/ne_50m_land/ne_50m_land.shp',color=color,lw=lw)
-def plot_eez(ax,color='k',lw=1):
-    add_contour(ax, '/home6/datawork/abarboni/OceanData/eez_boundaries_v12.shp',color=color,lw=lw)
-    add_contour(ax,'/home6/datawork/abarboni/OceanData/ne_10m_marine/ne_10m_admin_0_boundary_lines_maritime_indicator.shp',color=color,lw=lw)
- 
-
-def plot_borders(ax, color='k',lw=1):
-    add_contour(ax,'/home6/datawork/abarboni/OceanData/ne_10m_land/ne_10m_admin_0_boundary_lines_land.shp',color=color,lw=lw)
-    
-
-
-# %%
-def load_rossby_radius(CoorLon,CoorLat, path_rd='/home6/datawork/abarboni/OceanData/Rd_WOA.nc', convol=True, sigma=3):
-    """
-    Loading Rd atlas betwwen CoorLon; CoorLat at path_rd
-    optional astropy convolve smoothing
-    """ 
-    rdmat=nc4.Dataset(path_rd)
-    lat_rd=rdmat['lat'][:] ; lon_rd=rdmat['lon'][:]
-    idlat = np.where((lat_rd >= CoorLat[0]) & (lat_rd <= CoorLat[1]))[0]
-    idlon = np.where((lon_rd >= CoorLon[0]) & (lon_rd <= CoorLon[1]))[0]
-
-    Rd=rdmat['Rd'][idlon,:][:,idlat]
-    lat_rd=rdmat['lat'][idlat] ; lon_rd=rdmat['lon'][idlon]
-    rdmat.close()
-    if convol:
-        kernel = Gaussian2DKernel(x_stddev=sigma)
-        Rd = convolve(Rd, kernel, boundary='extend')
-    return lon_rd,lat_rd,Rd
-
-
-# %% [markdown]
-# ### Merging Neodyn and DYNED Atlas
-
-# %%
-def merge_dyned_neodyn(path_dyned,path_neo):
-    Nobs_d=1018441 ; Nobs_n=114068 #Obs number in Dyned and Neodyn
-    Ned_d=13694 ; Ned_n=2334 #eddy number in Dyned and Neodyn
-
-    x_cen=np.zeros(Nobs_d+Nobs_n) ; y_cen=np.zeros(Nobs_d+Nobs_n)
-    x_max=np.zeros((Nobs_d+Nobs_n,50)) ; y_max=np.zeros((Nobs_d+Nobs_n,50))
-    track=np.zeros(Nobs_d+Nobs_n)
-    r_max=np.zeros(Nobs_d+Nobs_n)
-    v_max=np.zeros(Nobs_d+Nobs_n)
-    time=np.zeros(Nobs_d+Nobs_n)
-    life_cycle=np.zeros(Nobs_d+Nobs_n)
-    ro=np.zeros(Nobs_d+Nobs_n)
-    dSSH=np.zeros(Nobs_d+Nobs_n)
-
-    first_obs=np.zeros(Ned_d+Ned_n)
-    last_obs=np.zeros(Ned_d+Ned_n)
-    ro_mean=np.zeros(Ned_d+Ned_n)
-    r_max_avg=np.zeros(Ned_d+Ned_n)
-    life_time=np.zeros(Ned_d+Ned_n)
-    eddy_origin=np.zeros(Ned_d+Ned_n)
-    eddy_death=np.zeros(Ned_d+Ned_n)
-
-    #### DYNED
-    data=nc4.Dataset(path_dyned)
-    Atlas=data['Atlas']   ### Obs variables
-    x_cen[:Nobs_d]=Atlas['x_cen'][:] ;y_cen[:Nobs_d]=Atlas['y_cen'][:]
-    x_max[:Nobs_d]=Atlas['x_max'][:] ;y_max[:Nobs_d]=Atlas['y_max'][:]
-    track[:Nobs_d]=Atlas['track'][:]
-    time[:Nobs_d]=Atlas['time'][:]
-    r_max[:Nobs_d]=Atlas['r_max'][:]
-    v_max[:Nobs_d]=Atlas['v_max'][:]
-    life_cycle[:Nobs_d]=Atlas['life_cycle'][:]
-    ro[:Nobs_d]=Atlas['Ro'][:]
-    dSSH[:Nobs_d]=Atlas['dssh_max'][:]  
-    first_obs[:Ned_d]=Atlas['index_of_first_observation'][:]
-    last_obs[:Ned_d]=Atlas['last_obs'][:]
-
-    ro_mean[:Ned_d]=Atlas['ro_mean'][:]   ### eddy variables
-    r_max_avg[:Ned_d]=Atlas['r_max_avg'][:]
-    life_time[:Ned_d]=Atlas['life_time'][:]
-    eddy_origin[:Ned_d]=Atlas['eddy_origin'][:]
-    eddy_death[:Ned_d]=Atlas['eddy_death'][:]
-    Ned=Atlas.dimensions['eddies'].size
-    data.close()
-
-    ####  NEODYN
-    Atlas=nc4.Dataset(path_neo)  ### Obs variables
-    x_cen[Nobs_d:]=Atlas['x_cen'][:] ;y_cen[Nobs_d:]=Atlas['y_cen'][:]
-    x_max[Nobs_d:]=Atlas['x_max'][:] ;y_max[Nobs_d:]=Atlas['y_max'][:]
-
-    track[Nobs_d:]=Atlas['track'][:]
-    time[Nobs_d:]=Atlas['time'][:]
-    r_max[Nobs_d:]=Atlas['r_max'][:]
-    v_max[Nobs_d:]=Atlas['v_max'][:]
-    life_cycle[Nobs_d:]=Atlas['life_cycle'][:]
-    ro[Nobs_d:]=Atlas['Ro'][:]
-
-    first_obs[Ned_d:]=Atlas['index_of_first_observation'][:]+Nobs_d  ## Warning here ! specific Neodyn
-    last_obs[Ned_d:]=Atlas['last_obs'][:]+Nobs_d
-    ro_mean[Ned_d:]=Atlas['ro_mean'][:]   ### eddy variables
-    r_max_avg[Ned_d:]=Atlas['r_max_avg'][:]
-    life_time[Ned_d:]=Atlas['life_time'][:]
-    eddy_origin[Ned_d:]=Atlas['eddy_origin'][:]
-    eddy_death[Ned_d:]=Atlas['eddy_death'][:]
-    dSSH[Nobs_d:]=Atlas['dssh'][:]  ## In NEODYN v2, dssh is dssh_max by default
-
-    new_index=Atlas['eddy_index_nb'][:]
-    Atlas.close()
-
-    first_obs=first_obs.astype(int)
-    last_obs=last_obs.astype(int)
-    return first_obs,last_obs,x_cen,y_cen,x_max,y_max,track,time,r_max,v_max,life_cycle,ro,dSSH,ro_mean,r_max_avg,life_time,eddy_origin,eddy_death,new_index
-
+    # Result[index_z]
+    A=interp.interp1d(Pres,Var, kind='linear')(local_z)
+    Filter_gap=np.abs(interp.interp1d(Pres,Pres,kind='nearest')(local_z)-local_z)<=dz/2
+    A[~Filter_gap]=np.nan
+    Result[index_z]=np.copy(A)
+    Result[Result==-1]=np.nan
+    # Result[index_z][~Filter_gap]=np.nan
+    return Result
