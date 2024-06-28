@@ -36,7 +36,7 @@ Eddy detections can come from various algorithm, you just need to provide detect
 
 1 eddy observation should provide at least 1 center and 1 surronding contour. Most of the algorithms compute 2 contours per observation, the 'maximal speed' and 'effective' contours, but the distinction is not necessary.
 
-The only constraint is that contour coordinates ('x_max','y_max','x_eff','y_eff') MUST be have the same number of points, and should be 2D ( [#obs,#point_in_the_contour])
+The only constraint is that contour coordinates ('x_max','y_max','x_eff','y_eff') MUST have the same number of points, and should be 2D with shape [#obs,#point_in_the_contour]
 
 
 ###########

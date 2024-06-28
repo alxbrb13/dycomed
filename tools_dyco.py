@@ -16,15 +16,15 @@ import matplotlib.pyplot as plt
 import netCDF4 as nc4
 import datetime as dt
 #import imageio
-from astropy.convolution import convolve, Gaussian2DKernel
+# from astropy.convolution import convolve, Gaussian2DKernel
 import scipy.ndimage as ndimage
 from scipy.stats import kde
 import scipy.interpolate as interp
 import matplotlib.path as mpp
 from tqdm import tqdm
-import cartopy.crs as ccrs
-import geopandas as gpd
-import cartopy.feature as cf
+# import cartopy.crs as ccrs
+# import geopandas as gpd
+# import cartopy.feature as cf
 # %%
 
 def distance(x0,x1,y0,y1):
@@ -95,13 +95,13 @@ def fill_gap(A):
 # %% Defining coloc function
 
 
-def newlink(x_common, y_common, day_common, x_cen, y_cen, x_max, y_max, x_end, y_end, time_dyned, delay=2, search_radius=150):
+def link_eddies(x_cast, y_cast, day_cast, x_cen, y_cen, x_max, y_max, x_end, y_end, time_dyned, delay=2, search_radius=150):
     """
     newlink  
     
     Attributes colocalization between profiles at given position and time, and the DYNED observations.
     This function looks for potential eddy centers ON THE SAME DAY, in a perimeter closer than search_radius
-    By default search_radius =120 km, but to be adjusted with the ocean region
+    By default search_radius =150 km, but to be adjusted with the ocean region
     Colocalization are flagged as 1 if profiles is between Rend and Rmax contours, flagged as 2 if indeed inside Ramx contour
     
     Change from previous function 'link_eddies' : two levels of eddy tags in 'flageddy', within last closed SSH contour and max speed radius differenciated
@@ -110,48 +110,48 @@ def newlink(x_common, y_common, day_common, x_cen, y_cen, x_max, y_max, x_end, y
               - Latest version of DYCOMED also encompasses detection at +/- several days and takes a 3rd flag "ambiguous"
     
     INPUT
-    x/y/time_cast      array size P            2D postion and time of cast profile
+    x/y/day_cast      array size P            2D postion and time of cast profile
     x/y_cen            array size Nobs         2D position of eddy centers from DYNED
     time_dyned         array size Nobs         observation time array in DYNED
     x/y_max            array size (Nobs x 50)  coordinates of Rmax contours observations
     x/y_end            array size (Nobs x 50)  coordinates of Rend contours observations
     
     OPTIONAL
-    search_radius=120   int        maximal distance in km to search for colocalized eddy center
+    search_radius=150   int        maximal distance in km to search for colocalized eddy center
     delay =2            int        time at +/- n days at which profiles are colocated
     
     OUTPUT
     ctd2obs     int array size P     index of colocalized observation with profiles, if any. If not colocalized, =-1
-    disteddy    float array size P   distance to colocalized eddy with profiles, if any. If not colocalized, =-1
-    flageddy    int array size P     Type of colocalization. If not colocalized, =0, if between Rmax and Rend =1, if inside Rmax=2
+    eddy_dist    float array size P   distance to colocalized eddy with profiles, if any. If not colocalized, =-1
+    eddy_flag   int array size P     Type of colocalization. If not colocalized, =0, if between Rmax and Rend =1, if inside Rmax=2
     """
-    new2obs=-1*np.ones((len(x_common),2*delay+1))
-    newdist=-1*np.ones((len(x_common),2*delay+1))
-    newflag=np.zeros((len(x_common),2*delay+1))
+    ctd2obs=-1*np.ones((len(x_cast),2*delay+1))
+    eddy_dist=-1*np.ones((len(x_cast),2*delay+1))
+    eddy_flag=np.zeros((len(x_cast),2*delay+1))
     
-    for i in tqdm(range(len(x_common))):
+    for i in tqdm(range(len(x_cast))):
         for k in np.arange(-delay,delay+1):
-            I=np.where(time_dyned==day_common[i]+k)[0]
-            D=distance(x_common[i], x_cen[I], y_common[i], y_cen[I])
+            I=np.where(time_dyned==day_cast[i]+k)[0]
+            D=distance(x_cast[i], x_cen[I], y_cast[i], y_cen[I])
             
             x_contour=x_max[I][D<search_radius] ; y_contour=y_max[I][D<search_radius]
             x_cont_end=x_end[I][D<search_radius+30] ; y_cont_end=y_end[I][D<search_radius+30]
             
             for j in range(np.shape(x_cont_end)[0]):
                 path_eddy=mpp.Path(np.array([x_cont_end[j],y_cont_end[j]]).T, closed=True)
-                if path_eddy.contains_point([x_common[i],y_common[i]]):
-                    new2obs[i,k+delay]=I[D<search_radius+30][j]
-                    newdist[i,k+delay]=D[D<search_radius+30][j]
-                    newflag[i,k+delay]=1
+                if path_eddy.contains_point([x_cast[i],y_cast[i]]):
+                    ctd2obs[i,k+delay]=I[D<search_radius+30][j]
+                    eddy_dist[i,k+delay]=D[D<search_radius+30][j]
+                    eddy_flag[i,k+delay]=1
             for j in range(np.shape(x_contour)[0]):
                 path_eddy=mpp.Path(np.array([x_contour[j],y_contour[j]]).T, closed=True)
-                if path_eddy.contains_point([x_common[i],y_common[i]]):
-                    newflag[i,k+delay]=2
+                if path_eddy.contains_point([x_cast[i],y_cast[i]]):
+                    eddy_flag[i,k+delay]=2
                     
-    newdist[newdist==-1]=np.nan
-    new2obs=new2obs.astype(int)
-    newflag=newflag.astype(int)
-    return new2obs,newdist, newflag
+    eddy_dist[eddy_dist==-1]=np.nan
+    ctd2obs=ctd2obs.astype(int)
+    eddy_flag=eddy_flag.astype(int)
+    return ctd2obs,eddy_dist, eddy_flag
 
 # %% MLD functions
 
@@ -283,7 +283,6 @@ Interpolate an array of profiles over a reference depth vector depth_array
 New December 2021 : Check that Temp and depth_array vectors have nans at the same levels
 
 
-
 """
 
 def interpol_profiles_column(depth_array, Temp, depth_ref, kind='linear', max_gap=20, min_lev_nb=10):
@@ -348,15 +347,41 @@ def interpol_profiles_column_filter(depth_prim, Temp, depth_ref, kind='linear', 
     return Result
 
 #%%
-def interp_local_z(Pres,Var,z_i,dz):
+def interp_local_z(Pres,Var,z_i,dz,interpol_mode='tight'):
+    """
+    Parameters
+    ----------
+    Pres : array size N
+        Original vertical grid on which data Var is provided
+    Var : arry size N
+        Original data measurement
+    z_i : array size P
+        Vertical grid where data are interpolated
+    dz : integer,  vertical grid step (in meter)
+        WARNING : dz is assumed constant here !
+    interpol_mode : TYPE, optional
+         The default is 'gap' = grid step in z_i with no value are kept as nan
+           otherwise = grid step in z_i with no value are interpolated using interp.interp1d(kind=interpol_mode)
+
+         
+    Returns
+    -------
+    Result : array size P
+        Interpolated data Var on grid step z_i. Missing value are handled depending on 'interpol_mode'
+
+    """
     index_z=(z_i>np.nanmin(Pres)) & (z_i<np.nanmax(Pres))
     local_z=z_i[index_z] #.data
     Result=np.ones(len(z_i))*-1
 
     # Result[index_z]
-    A=interp.interp1d(Pres,Var, kind='linear')(local_z)
-    Filter_gap=np.abs(interp.interp1d(Pres,Pres,kind='nearest')(local_z)-local_z)<=dz/2
-    A[~Filter_gap]=np.nan
+    
+    if interpol_mode=='tight':
+        A=interp.interp1d(Pres,Var, kind='linear')(local_z)
+        Filter_gap=np.abs(interp.interp1d(Pres,Pres,kind='nearest')(local_z)-local_z)<=dz/2
+        A[~Filter_gap]=np.nan
+    else:
+        A=interp.interp1d(Pres,Var, kind=interpol_mode)(local_z)
     Result[index_z]=np.copy(A)
     Result[Result==-1]=np.nan
     # Result[index_z][~Filter_gap]=np.nan
