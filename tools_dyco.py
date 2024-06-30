@@ -44,6 +44,9 @@ def unique_prof(time, x, y):
     INPUT
     time = in julian days (integer)
     X    = longitude in degree, can be [-180,180] or [0,360] but shoudl be consistent between both dataset to merge
+    
+    OUTPUT
+    Unic  integer, should uniquely identity the x,y,t position-time of the input.
     """
     Unic=((time*100).astype(int)*1e9 + (x*100).astype(int)*100000 + (y*100).astype(int)).astype(int)
     return Unic
@@ -347,7 +350,7 @@ def interpol_profiles_column_filter(depth_prim, Temp, depth_ref, kind='linear', 
     return Result
 
 #%%
-def interp_local_z(Pres,Var,z_i,dz,interpol_mode='tight'):
+def interp_local_z(Pres,Var,z_i,dz,interpol_mode='gap'):
     """
     Parameters
     ----------
@@ -376,7 +379,7 @@ def interp_local_z(Pres,Var,z_i,dz,interpol_mode='tight'):
 
     # Result[index_z]
     
-    if interpol_mode=='tight':
+    if interpol_mode=='gap':
         A=interp.interp1d(Pres,Var, kind='linear')(local_z)
         Filter_gap=np.abs(interp.interp1d(Pres,Pres,kind='nearest')(local_z)-local_z)<=dz/2
         A[~Filter_gap]=np.nan

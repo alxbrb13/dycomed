@@ -15,12 +15,13 @@ import numpy as np
 # (alternatively for csh ) $ setenv COPERNICUSMARINE_CACHE_DIRECTORY "path_where_you_can_write"
 # then : $ copernicusmarine login 
 
+#%% Default example : CORA Database 2015-2018 in the Med Sea (delayed-time)
+  
 path_work='./INSITU_DATA_singlefiles/'
 os.makedirs(path_work,exist_ok=True)
-
-#%% Default example : CORA Database 2015-2018 in the Med Sea (delayed-time)
-    
-data_types=['CT']
+  
+data_types=['GL','XB','PF']
+region='mediterrane'  ## available options : artic, baltic, blacksea, global, mediterrane, northwesternshelf, southwestshelf
 years=np.arange(2015,2018+1).astype(str)
 
 for TYPE in data_types:
@@ -28,13 +29,16 @@ for TYPE in data_types:
         print(" \n  ##### Downloading : "+TYPE+' - year : '+year+'######')
         cm.get( 
                dataset_id='cmems_obs-ins_glo_phy-temp-sal_my_cora_irr',
-               filter='*mediterrane/'+year+'/CO_DMQCGL01_'+year+'*_PR_'+TYPE+'*',
+               filter='*'+region+'/'+year+'/CO_DMQCGL01_'+year+'*_PR_'+TYPE+'*',
                output_directory=path_work,
                no_directories=True,
                force_download=True
                )
 #%%     
 ### Example 2 : Profiles in the Med Sea, Near-Real-Time dataset, history datapart
+path_work='./NRT_CORA_singlefiles/'
+os.makedirs(path_work,exist_ok=True)
+  
 data_types=['CT','GL','PF','XB']
 for TYPE in data_types:
     print(" ##### Downloading : "+TYPE+' ######')

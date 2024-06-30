@@ -28,7 +28,7 @@ CoorLon=[-6,36] ; CoorLat=[30,46] ### Mediterranean
 #### Colocation parameters
 search_radius=150 ## radius to look for center of likely collocated eddy obs. A good guess is a twice the deformation radius.
                  # ( large values of search radius slows down the algo) 
-delay=2           ## days for extended colocalization before/after day of cast (colocalization over (2*delay+1) days )
+eddy_lag=2           ## days for extended colocalization before/after day of cast (colocalization over (2*eddy_lag+1) days )
 track_provided=True  ## Are eddy obs already linked between timesteps in an eddy track ?
 
 ### Paths
@@ -76,7 +76,7 @@ if len(np.where(~Filter_time)[0])>0:
 # day_cast=day_cast[Filter_time]
 # %% Linking profiles & eddies
 
-ctd2obs,eddy_dist, eddy_tag = link_eddies(x_cast, y_cast, day_cast, x_cen, y_cen, x_max, y_max, x_end, y_end, time_eddy, delay=delay, search_radius=search_radius)
+ctd2obs,eddy_dist, eddy_tag = link_eddies(x_cast, y_cast, day_cast, x_cen, y_cen, x_max, y_max, x_end, y_end, time_eddy, eddy_lag=eddy_lag, search_radius=search_radius)
 
 Sum=np.sum(eddy_tag,axis=1) # np.sum(new2obs!=-1,axis=1)
 
@@ -84,20 +84,20 @@ Sum=np.sum(eddy_tag,axis=1) # np.sum(new2obs!=-1,axis=1)
 eddy_tag_1d=np.zeros(Nprof)
 eddy_tag_1d[Sum>0]=3 ## Default : flag 3 if ambiguous
 ## then :
-eddy_tag_1d[np.where(np.sum(eddy_tag[:]==1,axis=1)==(2*delay+1))[0]]=1 ##% flag 1 if always between Rend and Rmax
-eddy_tag_1d[np.where(Sum>=2*(2*delay+1-1))[0]]=2 ## flag 2 if inside eddy 80 % of the time
+eddy_tag_1d[np.where(np.sum(eddy_tag[:]==1,axis=1)==(2*eddy_lag+1))[0]]=1 ##% flag 1 if always between Rend and Rmax
+eddy_tag_1d[np.where(Sum>=2*(2*eddy_lag+1-1))[0]]=2 ## flag 2 if inside eddy 80 % of the time
 
 ## 1D observation index
 ctd2obs_1d=-1*np.ones(Nprof)
 ID=np.where(eddy_tag_1d>0)[0]
 for i in ID:  ## Select obs index as close as possible from the day of cast 
 
-    if ctd2obs[i,delay]!=-1:
-        ctd2obs_1d[i]=ctd2obs[i,delay]
-    elif ctd2obs[i,delay-1]!=-1:
-        ctd2obs_1d[i]=ctd2obs[i,delay-1]
-    elif ctd2obs[i,delay+1]!=-1:
-        ctd2obs_1d[i]=ctd2obs[i,delay+1]
+    if ctd2obs[i,eddy_lag]!=-1:
+        ctd2obs_1d[i]=ctd2obs[i,eddy_lag]
+    elif ctd2obs[i,eddy_lag-1]!=-1:
+        ctd2obs_1d[i]=ctd2obs[i,eddy_lag-1]
+    elif ctd2obs[i,eddy_lag+1]!=-1:
+        ctd2obs_1d[i]=ctd2obs[i,eddy_lag+1]
     else:  ## if not day of cast +/- 1 day, takes the first available
         ctd2obs_1d[i]=ctd2obs[i,ctd2obs[i,:]!=-1][0]
 ctd2obs_1d=ctd2obs_1d.astype(int)
@@ -116,8 +116,6 @@ for i in range(Nprof):
 
         if eddy_tag_1d[i]==2:
             eddy_tag_pol[i]=eddy_tag_pol[i]*2
-        # if eddy_tag_1d[i]==3:
-        #     eddy_tag[i]=eddy_tag[i]*3
         
 if track_provided:
     prof_track=track[ctd2obs_1d].astype(float)
@@ -126,7 +124,7 @@ if track_provided:
 # %% Some stats on Prof2Obs
 
 plt.figure(1)
-plt.hist(eddy_tag_pol, bins=4*delay+1)
+plt.hist(eddy_tag_pol, bins=4*eddy_lag+1)
 plt.xticks([-2,-1,0,1,2],['Inside \n Anticyclone','Ambiguous','Outside','Ambiguous','Inside \n Cyclone'])
 plt.title('Number of profiles')
 
@@ -140,17 +138,17 @@ print('\n  Inside Anticyclone : '+str(AE)+' \n Inside Cyclone : '+str(CE)+' \n A
 # %% Creating new NetCDF variables
 f_merge = nc4.Dataset(path_data,'a', format='NETCDF4')
 
-# if 'delay' not in f_merge.dimensions: ### if no colocalization ever done
-f_merge.createDimension('delay', 2*delay+1)
+# if 'eddy_lag' not in f_merge.dimensions: ### if no colocalization ever done
+f_merge.createDimension('eddy_lag', 2*eddy_lag+1)
 f_merge.createVariable('index_dyned_obs', 'i4', 'Nprof')
-f_merge.createVariable('extended_dyned_obs', 'i4', ('Nprof','delay'))
+f_merge.createVariable('extended_dyned_obs', 'i4', ('Nprof','eddy_lag'))
 
 f_merge.createVariable('eddy_distance', 'f4', 'Nprof')
 f_merge.createVariable('eddy_tag', 'i4', 'Nprof')
 
 ## Meta data information
 f_merge['index_dyned_obs'].description = 'if =-1 not in eddy, if x!= obs index in obs Atlas'
-f_merge['extended_dyned_obs'].description = 'Eddy Atlas observation number extended to +/- '+str(delay)+' days, if in eddy, =-1 otherwise'
+f_merge['extended_dyned_obs'].description = 'Eddy Atlas observation number extended to +/- '+str(eddy_lag)+' days, if in eddy, =-1 otherwise'
 f_merge['eddy_tag'].description = 'Eddy tag levels : 0 = outside eddy, 1 = Ambiguous (change value at +/- 2 days or inbetween Rmax and Rend), 2 = within max speed radius. \n Sign is eddy polarity : negative for AE, positive for CE'
 f_merge['eddy_distance'].description = 'eddy center distance in kilometers, averaged over +/- 2 days, if in eddy, =-1 otherwise'
 

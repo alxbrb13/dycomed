@@ -1,6 +1,17 @@
 ###########
+# Build a python environment
+
+Use Mamba in miniforge for better efficiency : https://github.com/conda-forge/miniforge
+Once downloaded create your env (copernicusmarine is useful only if you want some data from there)
+```
+mamba create -n dycomed
+mamba activate dycomed
+mamba install scipy numpy cartopy h5py netCDF4 gsw matplotlib tqdm copernicusmarine
+```
+
+###########
 # Part 1.0  : get in situ data (optional in you already have some)
-#############
+
 
 Download in situ data using the Copernicus Marine Toolbox (https://pypi.org/project/copernicusmarine/). The toolbox should be installed and you should be logged in :
 
@@ -13,17 +24,16 @@ The above script uses the `get` function to collect vertical profiles. Interpola
 
 ###########
 #  Part 1.1 : Update existing data
-############
+
 
 Most of the time we have in situ data, but we want to update them. Or we gather in situ data from different datasets or providers and we want to merge them. The script below merge 2 datasets considering each data as point, regardeless they are points or vertical profiles.
 
 ```
-python update_data.py
 python merge_netcdf.py
 ```
 ############
 # Part 2 : Prepare eddy detection data
-##############
+
 Available atlas with detection already performed:
 - Dyned (AMEDA for Med Sea)
 - META (Py Eddy Tracker at global scale)
@@ -41,11 +51,10 @@ The only constraint is that contour coordinates ('x_max','y_max','x_eff','y_eff'
 
 ###########
 # Part 3 : Perform colocation eddies <-> In situ
-#########
 
 In situ data are classified following the method explained in Barboni et al (2023) : https://doi.org/10.5194/os-19-229-2023  (see in particular Fig.2)
 
-A time window of +/- 2 days (5 days : D-2,D-1,D0,D+1,D+2 with D0 cast date of the considered in situ data) is considered by default. An in situ data is labelled as 'inside-eddy' if it falls inside the maximal speed radius of an eddy at least 4 out of 5 days. It is labelled as 'outside-eddy' if it does not fall inside *any* contour in the time window. In situ data meeting none of the above criteria are labelled as 'ambiguous'. Expected collocation stats are roughly 10-20 % ambiguous, 10% inside-anticyclone, 10% inside-cyclone.
+A time window of +/- 2 days is considered by default, called `eddy_lag` (5 days : D-2,D-1,D0,D+1,D+2 with D0 in situ data cast date ). An in situ data is labelled as 'inside-eddy' if it falls inside the maximal speed radius of an eddy at least 4 out of 5 days. It is labelled as 'outside-eddy' if it does not fall inside *any* contour in the time window. In situ data meeting none of the above criteria are labelled as 'ambiguous'. Expected collocation stats are roughly 10-20 % ambiguous, 10% inside-anticyclone, 10% inside-cyclone.
 
 This 'eddy_lag' of +/- 2 days is the typical time variation of a noisy eddy detection, and can be extended or reduced. Very noisy detections should be checked with higher eddy_lag to ascertain collocation. On the other hand region where eddies movement is due to physical processes (for instance the to Beta drift) should have a lower 'eddy_lag'.
 
@@ -56,7 +65,7 @@ python eddy_link.py
 
 ########
 # Part 4 : Compute background
-########
+
 
 Once in situ data are classified between 'inside-eddy' and 'outside-eddy', a reference background can be computed for each profile. This reference background is not a climatology but the mean of 'outside-eddy' profiles close in time and space to the considered profile.
 

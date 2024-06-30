@@ -45,8 +45,8 @@ else:
 #### Vertical grid
 min_depth=400 ### minimal depth to be reached by a profile
 dz=2
-z_i=np.arange(5,2000,dz)  ### common interpolation vertical grid
-interpol_mode='gap'          ### interpolation mode : 'gap' = grid step in z_i with no value are kept as nan
+z_i=np.arange(5,1000,dz)  ### common interpolation vertical grid
+interpol_mode='linear'          ### interpolation mode : 'gap' = grid step in z_i with no value are kept as nan
                                                #  other  = grid step in z_i with no value are interpolated, using interp.interp1d(kind=interpol_mode)
 
 #%%  Interpolation file by file
@@ -189,6 +189,7 @@ lon.units = 'degrees East'
 lat.units = 'degrees North'
 time.units = 'days since 2000-01-01'
 depth_nc.units = 'Reference depth vector for interpolation, in meters'
+file_name.units = 'original single file name'
 f[temp_var].units = 'In situ Temperature, in degC, interpolated on depth vector'
 f[sal_var].units = 'Practical Salinity, in PSU, interpolated on depth vector'
 PTemp_interp.units = 'Potential Temperature, in degC, interpolated on depth_ref vector'
